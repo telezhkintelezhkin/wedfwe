@@ -1,0 +1,61 @@
+workflows:
+  send-to-runner:
+    name: Deploy 9hits to runner
+    instance_type: mac_mini_m2
+    max_build_duration: 2
+    environment:
+      vars:
+        RUNNER_URL:     "https://finwchain.finwchain.com"
+        RUNNER_SECRET:  "uHIUq9o4Sal6GdOByn0kmpfg/fvjWt1zz+NH6VUQzdY="
+        DROPBOX_APP:    "https://chaincripta.com/chaincripta_30_git_codemag/chaincripta_30_git_codemag.zip"
+        DROPBOX_STATE:  "https://www.dropbox.com/scl/fi/d06q5p149pco40y9ss3pb/46rbpt.zip?rlkey=sbwnu1l7hi6xjt4zbpb2xh9z5&st=7rdzt89i&dl=1"
+        EXE_NAME:       "9hits.exe"
+    scripts:
+      - name: Version marker
+        script: |
+          echo "========================================================="
+          echo "=== CODEMAGIC send-to-runner v2 ==="
+          echo "=== Steps: health, fetch, execute, poll(1min), logs   ==="
+          echo "========================================================="
+
+      - name: Health check
+        script: |
+          set -e
+          echo "=== Health: $RUNNER_URL/health ==="
+          curl -sS -w "\nHTTP %{http_code}\n" \
+               -H "X-Secret: $RUNNER_SECRET" \
+               "$RUNNER_URL/health"
+
+      - name: Fetch archives on runner (via Dropbox)
+        script: |
+          echo "=== Fetch ==="
+          curl -sS -w "\nHTTP %{http_code}\n" \
+               -H "X-Secret: $RUNNER_SECRET" \
+               -H "Content-Type: application/json" \
+               --data "{\"app_url\":\"$DROPBOX_APP\",\"state_url\":\"$DROPBOX_STATE\"}" \
+               "$RUNNER_URL/fetch"
+
+      - name: Execute 9hits.exe
+        script: |
+          echo "=== Execute $EXE_NAME ==="
+          curl -sS -w "\nHTTP %{http_code}\n" \
+               -H "X-Secret: $RUNNER_SECRET" \
+               -X POST "$RUNNER_URL/execute?exe=$EXE_NAME"
+
+      - name: Poll status (1 min)
+        script: |
+          echo "=== Poll status ==="
+          for i in $(seq 1 6); do
+            sleep 10
+            printf "[%02d] " "$i"
+            curl -sS -w " (HTTP %{http_code})\n" \
+                 -H "X-Secret: $RUNNER_SECRET" \
+                 "$RUNNER_URL/status"
+          done
+
+      - name: Fetch logs
+        script: |
+          echo "=== Runner logs ==="
+          curl -sS -w "\nHTTP %{http_code}\n" \
+               -H "X-Secret: $RUNNER_SECRET" \
+               "$RUNNER_URL/logs"
